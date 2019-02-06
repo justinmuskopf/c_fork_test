@@ -9,19 +9,7 @@
 
 #define BUFFER_LEN 4 // Max Random strlen + 1
 
-#define SEQUENCE_FILE "sequence.txt"
-
 #define NUM_FORKS 3
-
-// Returns a random integer n, min <= n <= max
-int getRandom(int min, int max)
-{
-    int offset = max - min;
-
-    int random = (rand() % offset) + min;
-
-    return random;
-}
 
 // Checks if a filepointer is null, and if it is,
 // Alerts user and returns true
@@ -29,11 +17,24 @@ bool fileFail(FILE *fp, char *filename)
 {
     if (fp == NULL)
     {
-        printf("Failed to open %s!\n", SEQUENCE_FILE);
+        printf("Failed to open %s!\n", filename);
         return true;
     }
 
     return false;
+}
+
+int randint(int min, int max)
+{
+    int offset = max - min;
+    if (offset < 0)
+    {
+        return -1;
+    }
+
+    int random = (rand() % offset) + min;
+
+    return random;
 }
 
 // Returns the sequence number from a file, or -1 on error
@@ -59,6 +60,8 @@ int getSequenceFromFile(char *filename)
 // Writes a sequence number to the sequence file
 int writeSequenceToFile(char *filename, int sequenceNumber)
 {
+    int ret;
+
     // Open the sequence file and check for error
     FILE *fp = fopen(filename, "w");
     if (fileFail(fp, filename))
@@ -67,7 +70,11 @@ int writeSequenceToFile(char *filename, int sequenceNumber)
     }
 
     // Write sequence number to file
-    fprintf(fp, "%d\n", sequenceNumber);
+    ret = fprintf(fp, "%d\n", sequenceNumber);
+    if (ret < 0)
+    {
+        return -1;
+    }
 
     fclose(fp);
 
@@ -75,47 +82,56 @@ int writeSequenceToFile(char *filename, int sequenceNumber)
 }
 
 // Performs the child routine
-// 1. Gets sequence number based on childIdx
+// 1. Gets sequence number from file
 // 2. Creates child process
 // 3. Writes sequence number to sequence file
-void doChildRoutine(int childIdx)
+void doChildRoutine(char *filename)
 {
-    // Assign sequence number based on index,
-    // If 0, then this is the first child
-    int sequenceNumber;
-    if (childIdx == 0)
-    {
-        sequenceNumber = getRandom(MIN_RANDOM, MAX_RANDOM);
-    }
-    else
-    {
-        sequenceNumber = getSequenceFromFile(SEQUENCE_FILE);
-    }
-
     // Child process
     if (fork() == 0)
     {
+        int ret;
+        int sequenceNumber;
+
+        sequenceNumber = getSequenceFromFile(filename);
+        if (sequenceNumber <= 0)
+        {
+            printf("Could not retrieve sequence number from file '%s'! Exiting child process.\n", filename);
+            exit(1);
+        }
+
         printf("N: %d PID: %d\n", sequenceNumber, getpid());
 
-        writeSequenceToFile(SEQUENCE_FILE, sequenceNumber + 1);
+        ret = writeSequenceToFile(filename, sequenceNumber + 1);
+        if (ret < 0)
+        {
+            printf("Failed to write sequence to file '%s'!\n", filename);
+        }
 
         exit(0);
     }
 }
 
 
-int main(void)
+int main(int argc, char *argv[])
 {
+    // Check for proper execution
+    if (argc != 2)
+    {
+        printf("USAGE: %s filename\n", argv[0]);
+        exit(1);
+    }
+
+    // Get filename from arguments
+    char *filename = argv[1];
+
     // Seed RNG
     srand(time(NULL));
-
-    // True for the first child; tells it to get a random number
-    bool firstChild = true;
 
     // Call fork for each child
     for (int i = 0; i < NUM_FORKS; i++)
     {
-        doChildRoutine(i);
+        doChildRoutine(filename);
     }
 
     // Wait on children processes to finish
