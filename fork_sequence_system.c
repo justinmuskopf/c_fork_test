@@ -14,7 +14,7 @@
 
 #define NUM_FORKS 3
 
-#define DEFAULT_FILENAME "sequence_num"
+#define DEFAULT_FILENAME "/tmp/jfm0103_sequence_num"
 
 enum {OK, ERROR};
 
